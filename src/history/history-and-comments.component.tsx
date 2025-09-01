@@ -6,6 +6,8 @@ import {
   launchWorkspace,
   parseDate,
   type Session,
+  showModal,
+  showSnackbar,
   useConfig,
   userHasAccess,
   useSession,
@@ -31,6 +33,7 @@ import {
   getUuidFromReference,
   revalidate,
   sortMedicationDispensesByWhenHandedOver,
+  computeTotalQuantityDispensed,
 } from '../utils';
 import { type PharmacyConfig } from '../config-schema';
 
@@ -81,12 +84,18 @@ const HistoryAndComments: React.FC<{
           (medicationDispense?.quantity ? medicationDispense.quantity.value : 0);
       }
 
+      let quantityDispensed = 0;
+      if (medicationRequestBundle.dispenses) {
+        quantityDispensed = computeTotalQuantityDispensed(medicationRequestBundle.dispenses);
+      }
+
       const dispenseFormProps = {
         patientUuid,
         encounterUuid,
         medicationDispense,
         medicationRequestBundle,
         quantityRemaining,
+        quantityDispensed,
         mode: 'edit',
       };
 
@@ -116,7 +125,7 @@ const HistoryAndComments: React.FC<{
     } else if (medicationDispense.status === MedicationDispenseStatus.on_hold) {
       return t('editPauseRecord', 'Edit Pause Record');
     } else if (medicationDispense.status === MedicationDispenseStatus.declined) {
-      return t('editCloseeRecord', 'Edit Close Record');
+      return t('editCloseRecord', 'Edit Close Record');
     }
   };
 
@@ -135,24 +144,43 @@ const HistoryAndComments: React.FC<{
       const workspaceTitle = getWorkspaceTitle(medicationDispense);
       launchWorkspace(workspaceName, { workspaceTitle, ...props });
     };
+    const handleDeleteClick = ({ medicationDispense, medicationRequestBundle }) => {
+      const dispose = showModal('delete-confirm-modal', {
+        title: t('deleteDispenseRecord', 'Delete Dispense Record'),
+        message: t('deleteDispenseRecordMessage', 'Are you sure you want to delete this dispense record?'),
+        onDelete: () => {
+          handleDelete(medicationDispense, medicationRequestBundle);
+          dispose();
+        },
+        onClose: () => {
+          dispose();
+        },
+      });
+    };
 
     if (!editable && !deletable) {
       return null;
     } else {
       return (
         <OverflowMenu
-          ariaLabel={t('medicationDispenseActionMenu', 'Medication Dispense Action Menu')}
-          flipped={true}
-          className={styles.medicationEventActionMenu}>
+          aria-label={t('medicationDispenseActionMenu', 'Medication Dispense Action Menu')}
+          className={styles.medicationEventActionMenu}
+          flipped>
           {editable && (
-            <OverflowMenuItem onClick={handleEdit} itemText={t('editRecord', 'Edit record')}></OverflowMenuItem>
+            <OverflowMenuItem
+              className={styles.menuitem}
+              itemText={t('editRecord', 'Edit record')}
+              onClick={handleEdit}
+            />
           )}
           {deletable && (
             <OverflowMenuItem
-              onClick={() => {
-                handleDelete(medicationDispense, medicationRequestBundle);
-              }}
-              itemText={t('delete', 'Delete')}></OverflowMenuItem>
+              className={styles.menuitem}
+              hasDivider
+              isDelete
+              itemText={t('delete', 'Delete')}
+              onClick={() => handleDeleteClick({ medicationDispense, medicationRequestBundle })}
+            />
           )}
         </OverflowMenu>
       );
@@ -193,20 +221,41 @@ const HistoryAndComments: React.FC<{
       medicationRequestBundle,
       config.dispenseBehavior.restrictTotalQuantityDispensed,
     );
-    if (currentFulfillerStatus !== newFulfillerStatus) {
-      updateMedicationRequestFulfillerStatus(
-        getUuidFromReference(
-          medicationDispense.authorizingPrescription[0].reference, // assumes authorizing prescription exist
-        ),
-        newFulfillerStatus,
-      ).then(() => {
+
+    deleteMedicationDispense(medicationDispense.id)
+      .then(() => {
+        showSnackbar({
+          kind: 'success',
+          title: t('success', 'Success'),
+          subtitle: t('medicationDispenseDeleted', 'Medication dispense was deleted successfully'),
+        });
+        if (currentFulfillerStatus !== newFulfillerStatus) {
+          updateMedicationRequestFulfillerStatus(
+            getUuidFromReference(
+              medicationDispense.authorizingPrescription[0].reference, // assumes authorizing prescription exist
+            ),
+            newFulfillerStatus,
+          )
+            .then(() => {
+              revalidate(encounterUuid);
+            })
+            .catch(() => {
+              showSnackbar({
+                kind: 'error',
+                title: t('updateStatusFailed', 'Update Status Failed'),
+                subtitle: t('couldNotUpdateMedicationRequestStatus', 'Could not update medication request status'),
+              });
+            });
+        }
         revalidate(encounterUuid);
+      })
+      .catch(() => {
+        showSnackbar({
+          kind: 'error',
+          title: t('deleteFailed', 'Delete Failed'),
+          subtitle: t('couldNotDeleteMedicationDispense', 'Could not delete medication dispense'),
+        });
       });
-    }
-    // do the actual delete
-    deleteMedicationDispense(medicationDispense.id).then(() => {
-      revalidate(encounterUuid);
-    });
   };
 
   // TODO: assumption is dispenses always are after requests?
@@ -230,12 +279,12 @@ const HistoryAndComments: React.FC<{
                   {dispense.performer && dispense.performer[0]?.actor?.display} {generateDispenseVerbiage(dispense)} -{' '}
                   {formatDatetime(parseDate(dispense.whenHandedOver))}
                 </h5>
-                <Tile className={styles.dispenseTile} data-floating-menu-container>
+                <Tile className={styles.dispenseTile}>
+                  <MedicationEvent medicationEvent={dispense} status={generateDispenseTag(dispense)} />
                   {generateMedicationDispenseActionMenu(
                     dispense,
                     getMedicationRequestBundleContainingMedicationDispense(medicationRequestBundles, dispense),
                   )}
-                  <MedicationEvent medicationEvent={dispense} status={generateDispenseTag(dispense)} />
                 </Tile>
               </div>
             );

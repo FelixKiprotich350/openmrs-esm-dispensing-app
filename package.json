@@ -1,6 +1,6 @@
 {
   "name": "@openmrs/esm-dispensing-app",
-  "version": "1.6.0",
+  "version": "1.9.1",
   "license": "MPL-2.0",
   "description": "Medication dispensing application",
   "browser": "dist/openmrs-esm-dispensing-app.js",
@@ -15,10 +15,11 @@
     "test": "jest --config jest.config.js",
     "test:watch": "jest --config jest.config.js --watch",
     "typescript": "tsc",
-    "verify": "concurrently 'yarn:lint' 'yarn:test' 'yarn:typescript'",
-    "extract-translations": "i18next 'src/**/*.component.tsx' 'src/**/*.workspace.tsx' 'src/index.ts' --config ./i18next-parser.config.js",
+    "verify": "turbo run lint test typescript",
+    "extract-translations": "i18next 'src/**/*.component.tsx' 'src/**/*.workspace.tsx' 'src/index.ts' --config ./tools/i18next-parser.config.js",
     "coverage": "yarn test --coverage",
-    "postinstall": "husky install"
+    "postinstall": "husky install",
+    "test-e2e": "playwright test"
   },
   "browserslist": [
     "extends browserslist-config-openmrs"
@@ -42,13 +43,14 @@
     "url": "https://github.com/openmrs/openmrs-esm-dispensing/issues"
   },
   "dependencies": {
-    "@carbon/react": "1.12.0",
+    "@carbon/react": "^1.83.0",
     "classnames": "^2.5.1",
     "lodash-es": "^4.17.21",
     "react-to-print": "^2.14.13"
   },
   "peerDependencies": {
     "@openmrs/esm-framework": "*",
+    "@openmrs/esm-patient-common-lib": "*",
     "dayjs": "1.x",
     "react": "18.x",
     "react-dom": "18.x",
@@ -58,6 +60,8 @@
   },
   "devDependencies": {
     "@openmrs/esm-framework": "next",
+    "@openmrs/esm-patient-common-lib": "next",
+    "@playwright/test": "^1.52.0",
     "@swc/core": "^1.7.14",
     "@swc/jest": "^0.2.36",
     "@testing-library/dom": "^8.20.1",
@@ -72,8 +76,8 @@
     "@types/webpack-env": "^1.16.0",
     "@typescript-eslint/eslint-plugin": "^7.5.0",
     "@typescript-eslint/parser": "^7.5.0",
-    "concurrently": "^6.2.0",
     "dayjs": "^1.11.13",
+    "dotenv": "^16.3.1",
     "eslint": "^8.57.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-react-hooks": "^5.0.0",
@@ -94,12 +98,14 @@
     "react-router-dom": "^6.3.0",
     "rxjs": "^6.6.7",
     "swr": "^2.2.5",
+    "turbo": "^2.5.2",
     "typescript": "^4.3.2",
-    "webpack": "^5.88.0"
+    "webpack": "^5.99.9",
+    "webpack-cli": "^6.0.1"
   },
   "lint-staged": {
     "*.{ts,tsx}": "eslint --cache --fix --max-warnings 0",
     "*.{css,scss,ts,tsx}": "prettier --write --list-different"
   },
-  "packageManager": "yarn@4.4.0"
+  "packageManager": "yarn@4.9.1"
 }
